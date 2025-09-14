@@ -1,0 +1,24 @@
+---
+title: "Welcome To My Page!"
+---
+
+# About Me
+
+Hey! My name is Reem and I'm 22 years old.
+
+## Some fun things about me:
+- I have 3 persian cats 
+- I play video games
+- I love astronomy 
+- I'm Egyptian I moved to NY when I was 10.
+
+## Background
+
+I'm a graduate student at Baruch pursuing an MS in Business Analytics. I received my undergrad in finance also at Baruch this past spring.
+---
+```{r}
+#| include: false
+1+1
+```
+--------------
+Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
