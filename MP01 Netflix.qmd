@@ -1,0 +1,100 @@
+---
+title: "MP01 Netflix"
+format: html
+---
+
+```{r}
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(DT)
+library(stringr)
+
+# Create data directory
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+# Download GLOBAL data
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+# Download COUNTRY data
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+# Import BOTH datasets
+GLOBAL_TOP_10 <- read_tsv(GLOBAL_TOP_10_FILENAME)
+COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na = "N/A")
+
+```
+
+
+    
+# Let's answer some questions!
+
+### Question 1: How many countries does Netflix operate in?
+```{r}
+num_countries <- COUNTRY_TOP_10 |>
+  distinct(country_name) |>
+  nrow()
+```
+
+Netflix operates in `r num_countries` countries worldwide, demonstrating its truly global reach and presence across diverse markets.
+
+### Question 2: Which non-English film has spent the most weeks in the global top 10?
+```{r}
+top_non_english <- GLOBAL_TOP_10 |>
+  filter(category == "Films (Non-English)") |>
+  group_by(show_title) |>
+  summarise(max_weeks = max(cumulative_weeks_in_top_10), .groups = 'drop') |>
+  arrange(desc(max_weeks)) |>
+  head(1)
+```
+
+The non-English film "`r top_non_english$show_title`" has dominated international audiences, spending an impressive `r top_non_english$max_weeks` weeks in the Netflix global top 10. This demonstrates the universal appeal of quality content that transcends language barriers.
+
+### Question 3: What is the longest film to have appeared in the Netflix Global Top 10 (in minutes)
+```{r}
+longest_film <- GLOBAL_TOP_10 |>
+  filter(str_detect(category, "Films")) |>  # Both English and Non-English films
+  filter(!is.na(runtime)) |>  # Remove missing runtime values
+  arrange(desc(runtime)) |>
+  head(1) |>
+  mutate(runtime_minutes = round(runtime * 60))
+```
+
+The longest film to appear in Netflix's global top 10 is "`r longest_film$show_title`" at `r longest_film$runtime_minutes` minutes (`r round(longest_film$runtime, 1)` hours). This epic-length film demonstrates that Netflix audiences are willing to invest in longer-form cinematic experiences when the content is compelling.
+
+### Question 4: For each of the four categories, what program has the most total hours of global viewership?
+```{r}
+# Define formatting function for nice tables
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+top_by_category <- GLOBAL_TOP_10 |>
+  group_by(category, show_title) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE), .groups = 'drop') |>
+  group_by(category) |>
+  slice_max(total_hours, n = 1) |>
+  arrange(category)
+```
+
+The following table shows the most-watched program in each Netflix category, demonstrating the diverse content that drives global engagement:
+```{r}
+top_by_category |>
+  format_titles() |>
+  datatable(options=list(searching=FALSE, info=FALSE)) |>
+  formatRound('Total Hours')
+```
+
+These results highlight Netflix's success across different content types, from blockbuster English films to internationally acclaimed series, showing the platform's ability to create hits in every major category.
