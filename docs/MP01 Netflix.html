@@ -103,16 +103,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
-<link href="site_libs/htmltools-fill-0.5.8.1/fill.css" rel="stylesheet">
-<script src="site_libs/htmlwidgets-1.6.4/htmlwidgets.js"></script>
-<link href="site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet">
-<script src="site_libs/datatables-binding-0.34.0/datatables.js"></script>
-<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
-<link href="site_libs/dt-core-1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-<link href="site_libs/dt-core-1.13.6/css/jquery.dataTables.extra.css" rel="stylesheet">
-<script src="site_libs/dt-core-1.13.6/js/jquery.dataTables.min.js"></script>
-<link href="site_libs/crosstalk-1.2.2/css/crosstalk.min.css" rel="stylesheet">
-<script src="site_libs/crosstalk-1.2.2/js/crosstalk.min.js"></script>
 
 
 </head>
@@ -192,67 +182,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <section id="lets-answer-some-questions" class="level1">
 <h1>Let’s answer some questions!</h1>
-<section id="question-1-how-many-countries-does-netflix-operate-in" class="level3">
-<h3 class="anchored" data-anchor-id="question-1-how-many-countries-does-netflix-operate-in">Question 1: How many countries does Netflix operate in?</h3>
+<section id="q1-how-many-countries-does-netflix-operate-in-answer-94" class="level2">
+<h2 class="anchored" data-anchor-id="q1-how-many-countries-does-netflix-operate-in-answer-94">Q1 How many countries does Netflix Operate in? (Answer = 94)</h2>
+<p>num_countries &lt;- COUNTRY_TOP_10 |&gt; distinct(country_name) |&gt; nrow()</p>
+<p>num_countries</p>
+</section>
+<section id="q2-which-non-english-language-film-has-spent-the-most-cumulative-weeks-in-the-global-top-10-answer-all-quiet-on-the-western-front-23-weeks" class="level2">
+<h2 class="anchored" data-anchor-id="q2-which-non-english-language-film-has-spent-the-most-cumulative-weeks-in-the-global-top-10-answer-all-quiet-on-the-western-front-23-weeks">Q2: Which non-English-language film has spent the most cumulative weeks in the global top 10? (Answer = All Quiet on the Western Front, 23 weeks)</h2>
+<p>non_english_films &lt;- GLOBAL_TOP_10 |&gt; filter(category == “Films (Non-English)”) |&gt; group_by(show_title) |&gt; summarise(total_weeks = max(cumulative_weeks_in_top_10)) |&gt; arrange(desc(total_weeks))</p>
+</section>
+<section id="look-at-the-top-result" class="level2">
+<h2 class="anchored" data-anchor-id="look-at-the-top-result">Look at the top result</h2>
+<p>non_english_films |&gt; head(1) ### Question 1: How many countries does Netflix operate in?</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>num_countries <span class="ot">&lt;-</span> COUNTRY_TOP_10 <span class="sc">|&gt;</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(country_name) <span class="sc">|&gt;</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Netflix operates in 94 countries worldwide, demonstrating its truly global reach and presence across diverse markets.</p>
-</section>
-<section id="question-2-which-non-english-film-has-spent-the-most-weeks-in-the-global-top-10" class="level3">
-<h3 class="anchored" data-anchor-id="question-2-which-non-english-film-has-spent-the-most-weeks-in-the-global-top-10">Question 2: Which non-English film has spent the most weeks in the global top 10?</h3>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>top_non_english <span class="ot">&lt;-</span> GLOBAL_TOP_10 <span class="sc">|&gt;</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(category <span class="sc">==</span> <span class="st">"Films (Non-English)"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(show_title) <span class="sc">|&gt;</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">max_weeks =</span> <span class="fu">max</span>(cumulative_weeks_in_top_10), <span class="at">.groups =</span> <span class="st">'drop'</span>) <span class="sc">|&gt;</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(max_weeks)) <span class="sc">|&gt;</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(<span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>The non-English film “All Quiet on the Western Front” has dominated international audiences, spending an impressive 23 weeks in the Netflix global top 10. This demonstrates the universal appeal of quality content that transcends language barriers.</p>
-</section>
-<section id="question-3-what-is-the-longest-film-to-have-appeared-in-the-netflix-global-top-10-in-minutes" class="level3">
-<h3 class="anchored" data-anchor-id="question-3-what-is-the-longest-film-to-have-appeared-in-the-netflix-global-top-10-in-minutes">Question 3: What is the longest film to have appeared in the Netflix Global Top 10 (in minutes)</h3>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>longest_film <span class="ot">&lt;-</span> GLOBAL_TOP_10 <span class="sc">|&gt;</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">str_detect</span>(category, <span class="st">"Films"</span>)) <span class="sc">|&gt;</span>  <span class="co"># Both English and Non-English films</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(runtime)) <span class="sc">|&gt;</span>  <span class="co"># Remove missing runtime values</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(runtime)) <span class="sc">|&gt;</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(<span class="dv">1</span>) <span class="sc">|&gt;</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">runtime_minutes =</span> <span class="fu">round</span>(runtime <span class="sc">*</span> <span class="dv">60</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>The longest film to appear in Netflix’s global top 10 is “Pushpa 2: The Rule (Reloaded Version)” at 224 minutes (3.7 hours). This epic-length film demonstrates that Netflix audiences are willing to invest in longer-form cinematic experiences when the content is compelling.</p>
-</section>
-<section id="question-4-for-each-of-the-four-categories-what-program-has-the-most-total-hours-of-global-viewership" class="level3">
-<h3 class="anchored" data-anchor-id="question-4-for-each-of-the-four-categories-what-program-has-the-most-total-hours-of-global-viewership">Question 4: For each of the four categories, what program has the most total hours of global viewership?</h3>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define formatting function for nice tables</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>format_titles <span class="ot">&lt;-</span> <span class="cf">function</span>(df){</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">colnames</span>(df) <span class="ot">&lt;-</span> <span class="fu">str_replace_all</span>(<span class="fu">colnames</span>(df), <span class="st">"_"</span>, <span class="st">" "</span>) <span class="sc">|&gt;</span> <span class="fu">str_to_title</span>()</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    df</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>top_by_category <span class="ot">&lt;-</span> GLOBAL_TOP_10 <span class="sc">|&gt;</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(category, show_title) <span class="sc">|&gt;</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">total_hours =</span> <span class="fu">sum</span>(weekly_hours_viewed, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), <span class="at">.groups =</span> <span class="st">'drop'</span>) <span class="sc">|&gt;</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(category) <span class="sc">|&gt;</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">slice_max</span>(total_hours, <span class="at">n =</span> <span class="dv">1</span>) <span class="sc">|&gt;</span></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(category)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>The following table shows the most-watched program in each Netflix category, demonstrating the diverse content that drives global engagement:</p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>top_by_category <span class="sc">|&gt;</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">format_titles</span>() <span class="sc">|&gt;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">datatable</span>(<span class="at">options=</span><span class="fu">list</span>(<span class="at">searching=</span><span class="cn">FALSE</span>, <span class="at">info=</span><span class="cn">FALSE</span>)) <span class="sc">|&gt;</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">formatRound</span>(<span class="st">'Total Hours'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output-display">
-<div class="datatables html-widget html-fill-item" id="htmlwidget-d070d714aff86b9a1898" style="width:100%;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-d070d714aff86b9a1898">{"x":{"filter":"none","vertical":false,"data":[["1","2","3","4"],["Films (English)","Films (Non-English)","TV (English)","TV (Non-English)"],["KPop Demon Hunters","Society of the Snow","Stranger Things","Squid Game"],[559100000,235900000,2967980000,5048300000]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>Category<\/th>\n      <th>Show Title<\/th>\n      <th>Total Hours<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"searching":false,"info":false,"columnDefs":[{"targets":3,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatRound(data, 2, 3, \",\", \".\", null);\n  }"},{"className":"dt-right","targets":3},{"orderable":false,"targets":0},{"name":" ","targets":0},{"name":"Category","targets":1},{"name":"Show Title","targets":2},{"name":"Total Hours","targets":3}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":["options.columnDefs.0.render"],"jsHooks":[]}</script>
-</div>
-</div>
-<p>These results highlight Netflix’s success across different content types, from blockbuster English films to internationally acclaimed series, showing the platform’s ability to create hits in every major category.</p>
 
 
 </section>
