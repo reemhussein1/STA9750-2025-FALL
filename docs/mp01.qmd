@@ -1,0 +1,327 @@
+---
+title: "MP01 Netflix Top 10 Analysis: Gourmet Cheeseburgers Across the Globe"
+author: Reem Hussein
+format: html
+theme: vapor
+---
+
+```{r}
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(DT)
+library(stringr)
+
+# Create data directory
+if(!dir.exists(file.path("data", "mp01"))){
+    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+}
+
+# Download GLOBAL data
+GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
+if(!file.exists(GLOBAL_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
+                  destfile=GLOBAL_TOP_10_FILENAME)
+}
+
+# Download COUNTRY data
+COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
+if(!file.exists(COUNTRY_TOP_10_FILENAME)){
+    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
+                  destfile=COUNTRY_TOP_10_FILENAME)
+}
+
+# Import BOTH datasets
+GLOBAL_TOP_10 <- read_tsv(GLOBAL_TOP_10_FILENAME)
+COUNTRY_TOP_10 <- read_tsv(COUNTRY_TOP_10_FILENAME, na = "N/A")
+
+```
+
+
+    
+# Let's answer some questions!
+
+### Question 1: How many countries does Netflix operate in?
+```{r}
+num_countries <- COUNTRY_TOP_10 |>
+  distinct(country_name) |>
+  nrow()
+```
+
+Netflix operates in `r num_countries` countries worldwide, which shows its global reach and presence across diverse markets.
+
+### Question 2: Which non-English film has spent the most weeks in the global top 10?
+```{r}
+top_non_english <- GLOBAL_TOP_10 |>
+  filter(category == "Films (Non-English)") |>
+  group_by(show_title) |>
+  summarise(max_weeks = max(cumulative_weeks_in_top_10), .groups = 'drop') |>
+  arrange(desc(max_weeks)) |>
+  head(1)
+```
+
+The non-English film "`r top_non_english$show_title`" has dominated international audiences, spending `r top_non_english$max_weeks` weeks in the Netflix global top 10.
+
+### Question 3: What is the longest film to have appeared in the Netflix Global Top 10 (in minutes)
+```{r}
+longest_film <- GLOBAL_TOP_10 |>
+  filter(str_detect(category, "Films")) |>  # Both English and Non-English films
+  filter(!is.na(runtime)) |>  # Remove missing runtime values
+  arrange(desc(runtime)) |>
+  head(1) |>
+  mutate(runtime_minutes = round(runtime * 60))
+```
+
+The longest film to appear in Netflix's global top 10 is "`r longest_film$show_title`" at `r longest_film$runtime_minutes` minutes (`r round(longest_film$runtime, 1)` hours). This shows that Netflix audiences are willing to invest in longer-form cinematic experiences when the content is compelling.
+
+### Question 4: For each of the four categories, what program has the most total hours of global viewership?
+```{r}
+# Define formatting function for nice tables
+format_titles <- function(df){
+    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+    df
+}
+
+top_by_category <- GLOBAL_TOP_10 |>
+  group_by(category, show_title) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE), .groups = 'drop') |>
+  group_by(category) |>
+  slice_max(total_hours, n = 1) |>
+  arrange(category)
+```
+
+The following table shows the most-watched program in each Netflix category, demonstrating the diverse content that drives global engagement:
+```{r}
+top_by_category |>
+  format_titles() |>
+  datatable(options=list(searching=FALSE, info=FALSE)) |>
+  formatRound('Total Hours')
+```
+
+These results highlight Netflix's success across different content types, from English films to international series, showing the platform's ability to create hits in every major category.
+
+### Question 5: Which TV show had the longest run in a country’s Top 10? How long was this run and in what country did it occur?
+```{r}
+longest_tv_run <- COUNTRY_TOP_10 |>
+  filter(str_detect(category, "TV")) |>  # Both English and Non-English TV
+  arrange(desc(cumulative_weeks_in_top_10)) |>
+  head(1)
+```
+
+The TV show "`r longest_tv_run$show_title`" holds the record for the longest run in a country's top 10, spending `r longest_tv_run$cumulative_weeks_in_top_10` weeks on the charts in `r longest_tv_run$country_name`.
+
+### Question 6: Netflix provides over 200 weeks of service history for all but one country in our data set. Which country is this and when did Netflix cease operations in that country?
+```{r}
+weeks_per_country <- COUNTRY_TOP_10 |>
+  group_by(country_name) |>
+  summarise(total_weeks = n_distinct(week)) |>
+  arrange(total_weeks) |>
+  filter(total_weeks < 200)
+```
+
+The country `r weeks_per_country$country_name[1]` has only `r weeks_per_country$total_weeks[1]` weeks of Netflix Top 10 data, indicating that Netflix ended operations there on `r max(COUNTRY_TOP_10$week[COUNTRY_TOP_10$country_name == weeks_per_country$country_name[1]])`.
+
+### Question 7: What is the total viewership of the TV show Squid Game? Note that there are three seasons total and we are looking for the total number of hours watched across all seasons.
+```{r}
+squid_game_total <- GLOBAL_TOP_10 |>
+  filter(str_detect(show_title, "Squid Game")) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE)) |>
+  pull(total_hours)
+
+# Format for better display (instead of receiving an answer like 5.31e+09)
+squid_game_formatted <- format(squid_game_total, big.mark = ",", scientific = FALSE)
+```
+
+Across all seasons, Squid Game has accumulated `r squid_game_formatted` total hours of global viewership, cementing its status as a Netflix phenomenon.
+
+### Question 8: The movie Red Notice has a runtime of 1 hour and 58 minutes. Approximately how many views did it receive in 2021?
+```{r}
+library(lubridate)
+
+red_notice_2021 <- GLOBAL_TOP_10 |>
+  filter(show_title == "Red Notice", year(week) == 2021) |>
+  mutate(estimated_views = weekly_hours_viewed / (1 + 58/60)) |> # 1h 58min = 1.97 hours
+  summarise(total_estimated_views = sum(estimated_views, na.rm = TRUE)) |>
+  pull(total_estimated_views)
+```
+
+Red Notice received approximately `r format(round(red_notice_2021), big.mark = ",")` views in 2021, calculated by dividing total viewing hours by the film's 1 hour 58 minute runtime.
+
+### Question 9: How many Films reached Number 1 in the US but did not originally debut there? That is, find films that first appeared on the Top 10 chart at, e.g., Number 4 but then became more popular and eventually hit Number 1? What is the most recent film to pull this off?
+```{r}
+us_climbers <- COUNTRY_TOP_10 |>
+  filter(country_name == "United States", str_detect(category, "Films")) |>
+  group_by(show_title) |>
+  summarise(
+    min_rank = min(weekly_rank),
+    first_week = min(week),
+    hit_number_one = min_rank == 1,
+    .groups = 'drop'
+  ) |>
+  filter(hit_number_one == TRUE) |>
+  # Check if they debuted at something other than #1
+  left_join(
+    COUNTRY_TOP_10 |>
+      filter(country_name == "United States", str_detect(category, "Films")) |>
+      group_by(show_title) |>
+      slice_min(week) |>
+      select(show_title, debut_rank = weekly_rank),
+    by = "show_title"
+  ) |>
+  filter(debut_rank > 1) |>
+  arrange(desc(first_week))
+
+num_climbers <- nrow(us_climbers)
+most_recent <- us_climbers$show_title[1]
+```
+
+`r num_climbers` films reached #1 in the US after debuting at a lower position. The most recent film to accomplish this was "`r most_recent`".
+
+### Question 10: Which TV show/season hit the top 10 in the most countries in its debut week? In how many countries did it chart?
+```{r}
+widest_debut <- COUNTRY_TOP_10 |>
+  filter(str_detect(category, "TV")) |>
+  group_by(show_title) |>
+  filter(week == min(week)) |> # Get debut week for each show
+  group_by(show_title, week) |>
+  summarise(countries_debuted = n_distinct(country_name), .groups = 'drop') |>
+  arrange(desc(countries_debuted)) |>
+  head(1)
+```
+
+The TV show "`r widest_debut$show_title`" achieved the widest international debut, appearing in the top 10 charts of `r widest_debut$countries_debuted` countries during its first week.
+
+# Press Release #1: Stranger Things Season 5
+```{r}
+# Calculate Stranger Things performance metrics
+stranger_things_total <- GLOBAL_TOP_10 |>
+  filter(str_detect(show_title, "Stranger Things")) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE)) |>
+  pull(total_hours)
+
+stranger_things_weeks <- GLOBAL_TOP_10 |>
+  filter(str_detect(show_title, "Stranger Things")) |>
+  summarise(max_weeks = max(cumulative_weeks_in_top_10)) |>
+  pull(max_weeks)
+
+stranger_countries <- COUNTRY_TOP_10 |>
+  filter(str_detect(show_title, "Stranger Things")) |>
+  summarise(countries = n_distinct(country_name)) |>
+  pull(countries)
+
+# Compare to other English TV shows
+english_tv_ranking <- GLOBAL_TOP_10 |>
+  filter(category == "TV (English)") |>
+  group_by(show_title) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE)) |>
+  arrange(desc(total_hours)) |>
+  mutate(rank = row_number())
+
+st_rank <- english_tv_ranking |>
+  filter(str_detect(show_title, "Stranger Things")) |>
+  pull(rank)
+```
+
+**FOR IMMEDIATE RELEASE**
+
+## BREAKING NEWS: STRANGER THINGS SEASON 5
+
+Hold on to your boots because we just got word that Netflix will release the fifth and final season of Stranger Things at the end of the year! (2025). 
+
+As Netflix prepares to release the fifth and final season of *Stranger Things* in late 2025, the series stands as one of the platform's most influential shows, having generated `r format(stranger_things_total, big.mark = ",", scientific = FALSE)` total hours of global viewing time across its previous seasons. *Stranger Things* has maintained a grasp on people worldwide, cultivating them into this mysterious supernatural world of Hawkins, Indiana, spending `r stranger_things_weeks` consecutive weeks in Netflix's coveted global top 10. 
+
+The series' multinational reach has been equally impressive, captivating viewers across `r stranger_countries` countries and demonstrating Netflix's ability to create content that transcends cultural boundaries. Among English-language television series on the platform, *Stranger Things* ranks as the #`r st_rank` most-watched show by total viewing hours, cementing its position alongside Netflix's most successful original productions.
+
+Time is ticking and this new and final season of *Stranger Things* will be here before you know it! Are you ready?
+
+# Press Release #2: Netflix's Success in India
+```{r}
+# India-exclusive content performance
+india_exclusive_shows <- COUNTRY_TOP_10 |>
+  filter(country_name == "India") |>
+  anti_join(
+    COUNTRY_TOP_10 |> filter(country_name == "United States"),
+    by = "show_title"
+  ) |>
+  count(show_title, sort = TRUE) |>
+  head(1)
+
+top_india_show <- india_exclusive_shows$show_title[1]
+india_appearances <- india_exclusive_shows$n[1]
+
+# India market growth over time
+india_growth <- COUNTRY_TOP_10 |>
+  filter(country_name == "India") |>
+  group_by(year = year(week)) |>
+  summarise(unique_shows = n_distinct(show_title), .groups = 'drop') |>
+  arrange(year)
+
+early_year_shows <- india_growth$unique_shows[1]
+recent_year_shows <- tail(india_growth$unique_shows, 1)
+growth_rate <- round(((recent_year_shows - early_year_shows) / early_year_shows) * 100)
+
+# Total India content
+total_india_shows <- COUNTRY_TOP_10 |>
+  filter(country_name == "India") |>
+  summarise(total_titles = n_distinct(show_title)) |>
+  pull(total_titles)
+```
+
+*** FOR IMMEDIATE RELEASE ***
+
+## Netflix's growth in India
+
+Netflix's strategic approach to focus on India is showing positive results with the platform now featuring `r total_india_shows` titles that have reached top 10 status in India. Leading this success is `r top_india_show` which has dominated Indian audiences with `r india_appearances` separate appearances in the country's weekly top 10 charts. 
+
+The platform's focus on India has generated substantial growth momentum, with Netflix experiencing approximately `r growth_rate`% growth in the diversity of top-performing titles over recent years. 
+
+This expansion shows Netflix's commitment to serving India's viewership through their investment in Hindi language productions.
+
+# Press Release #3: Suits' Success 
+```{r}
+# Suits global performance
+suits_total <- GLOBAL_TOP_10 |>
+  filter(str_detect(show_title, "Suits")) |>
+  summarise(total_hours = sum(weekly_hours_viewed, na.rm = TRUE)) |>
+  pull(total_hours)
+
+suits_weeks <- GLOBAL_TOP_10 |>
+  filter(str_detect(show_title, "Suits")) |>
+  summarise(max_weeks = max(cumulative_weeks_in_top_10)) |>
+  pull(max_weeks)
+
+# Countries where Suits charted
+suits_countries <- COUNTRY_TOP_10 |>
+  filter(str_detect(show_title, "Suits")) |>
+  summarise(countries = n_distinct(country_name)) |>
+  pull(countries)
+
+# Longest country
+suits_longest <- COUNTRY_TOP_10 |>
+  filter(str_detect(show_title, "Suits")) |>
+  arrange(desc(cumulative_weeks_in_top_10)) |>
+  head(1)
+
+suits_longest_country <- suits_longest$country_name
+suits_longest_weeks <- suits_longest$cumulative_weeks_in_top_10
+
+# Get top 3 countries for Suits
+suits_top_countries <- COUNTRY_TOP_10 |>
+  filter(str_detect(show_title, "Suits")) |>
+  arrange(desc(cumulative_weeks_in_top_10)) |>
+  head(3)
+
+suits_second_country <- suits_top_countries$country_name[2]
+suits_second_weeks <- suits_top_countries$cumulative_weeks_in_top_10[2]
+```
+
+*** FOR IMMEDIATE RELEASE ***
+
+## Legal Drama "Suits" Proves Timeless Appeal
+
+Suits has proven to be one of the top shows with the series generating `r format(suits_total, big.mark = ",", scientific = FALSE)` hours of global viewing and maintaining a position in Netflix's top 10 for `r suits_weeks` consecutive weeks. Suits had an airtime from 2011 - 2019 but still continues to attract a new generation of fans on the streaming platform with its compelling storytelling. 
+
+The show's revival extends across `r suits_countries` countries, with its longest run occuring in `r suits_longest_country`, where it spent `r suits_longest_weeks` weeks captivating audiences. The show has even made its way to `r suits_second_country`! with `r suits_second_weeks` weeks.
+
+Suits has had the ability to stay relevant as time goes on and many new shows come out. Netflix's extensive library allows subscribers to discover various series regardless of their original air date. 
