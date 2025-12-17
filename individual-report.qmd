@@ -1,0 +1,368 @@
+---
+title: "Individual-report"
+author: Reem Hussein
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+---
+<style> 
+pre { 
+  color: cyan 
+} 
+</style>
+
+<style>
+/* Make datatable text cyan and bold */
+table.dataTable tbody td {
+  color: cyan !important;
+  font-weight: 500;
+}
+
+/* Optional: make headers pop too */
+table.dataTable thead th {
+  color: cyan !important;
+  font-weight: bold;
+}
+</style>
+
+
+Individual Report for STA9750:
+
+New York City’s 311 system is one of the busiest civic service platforms in the world. Every day, thousands of residents submit complaints related to noise, sanitation, parking, unsafe conditions, and other quality-of-life concerns. While the system is designed to provide a central, accessible channel for reporting issues that aren’t emergency related issues requiring 911, residents often question whether responses are timely or consistent across the city. 
+
+
+As part of the broader team project, our overarching question examined whether there are systemic disparities in how city services are delivered to lower income communities compared to wealthier ones. We specifically chose 311 as the city service. Within that team effort, my individual contribution focused on one specific piece of this larger picture, which is analyzing the average response time to quality of life complaints by neighborhood. This matters because 311 responsiveness is a core measure of how well a city functions. It acts as the direct line between citizens and local government for everyday problems. Additionally, Disparities in response times directly impact public trust. When services lag in specific areas, it signals inequality and affects the perceived legitimacy of government institutions.
+
+For this analysis, ZIP codes or boroughs are treated as “neighborhoods”. My goal was not to explain why delays occur, and not to tie delays to socioeconomic patterns, but simply to evaluate how response performance varies geographically. Answering this question required cleaning geographic identifiers, processing response times, summarizing delays by ZIP code, and visualizing variation across the city. The results ultimately provide a clear and interpretable picture of where delays are longest, where they are shortest, and how the boroughs compare overall.
+
+The data used in this analysis is from NYC Open Data. Below is the code used for data acquisition.
+
+
+
+#| code-fold: true
+#| code-summary: "show historical jobs"
+#| message: false
+#| warning: false
+
+library(httr2)
+library(jsonlite)
+library(dplyr)
+library(DT)
+
+# Function to download data from Socrata API using httr2 (replaces RSocrata)
+download_socrata_data <- function(base_url, where_clause = NULL, limit = 50000) {
+  # Build the URL with query parameters
+  url <- base_url
+  params <- list(`$limit` = limit)
+  if (!is.null(where_clause)) {
+    params[["$where"]] <- where_clause
+  }
+  
+  # Make the request
+  resp <- request(url) |>
+    req_url_query(!!!params) |>
+    req_perform()
+  
+  # Parse JSON response
+  data <- resp |> resp_body_json(simplifyVector = TRUE)
+  
+  return(as_tibble(data))
+}
+
+# Define the file path where you'll save the data
+data_file <- "nyc_311_data_2024_jan_apr.rds"
+
+# Check if the file already exists
+if (file.exists(data_file)) {
+  # If it exists, just read it
+  df <- readRDS(data_file)
+} else {
+  # If it doesn't exist, download it
+  # Note: We download in chunks due to API limits
+  
+  base_url <- "https://data.cityofnewyork.us/resource/erm2-nwe9.json"
+  where_clause <- "created_date>='2024-01-01T00:00:00' AND created_date<'2024-05-01T00:00:00'"
+  
+  # Download data (getting first 50000 rows - increase limit or paginate for more)
+  df <- download_socrata_data(base_url, where_clause, limit = 50000)
+  
+  # Save to file
+  saveRDS(df, data_file)
+}
+
+# Display first 1000 rows only
+datatable(head(df, 1000),
+          options = list(
+            pageLength = 10,
+            scrollX = TRUE,
+            autoWidth = TRUE
+          ),
+          filter = 'top',
+          class = 'cell-border stripe',
+          caption = "Showing first 1,000 rows of data")
+
+
+In the code chunk above, we used httr2 instead of RSocrata since it wouldn’t install on our laptops. Using httr2 was a work around and it still got the job done. We decided to work with the first 4 months of data from 2024 (from January to May) since the data set was way too large when we chose to do one year. This approach is still acceptable since that 4 months had enough data to work with. 
+
+Data cleaning is also a huge part of this analysis. 311 data contains thousands of missing or inconsistent entries, especially in time stamps and geographic fields. Below are the main cleaning actions that were performed.
+
+### 3.3 Data Quality Assessment
+
+# Assess data quality for 311 data
+assess_data_quality <- function(df, dataset_name) {
+  cat("=== Data Quality Assessment:", dataset_name, "===\n")
+  
+  # Missing values
+  missing_summary <- df |>
+    summarise(across(everything(), ~sum(is.na(.)))) |>
+    pivot_longer(everything(), names_to = "variable", values_to = "missing_count") |>
+    mutate(missing_percent = round(missing_count / nrow(df) * 100, 2)) |>
+    arrange(desc(missing_percent))
+  
+  print(missing_summary)
+  
+  # Data completeness
+  cat("\nOverall Completeness:", 
+      round((1 - sum(is.na(df)) / (nrow(df) * ncol(df))) * 100, 2), "%\n\n")
+}
+
+# Assess both datasets
+assess_data_quality(df, "311 Service Requests")
+assess_data_quality(df_property, "Property Data")
+
+
+## Data Processing and Cleaning
+
+### 3.4 Clean and Process 311 Data
+
+# Clean and process 311 data
+df_311_clean <- df |>
+  # Remove rows with missing essential information
+  filter(!is.na(latitude), !is.na(longitude), !is.na(created_date)) |>
+  
+  # Parse dates if they're character
+ mutate(
+    created_date = if(is.character(created_date)) ymd_hms(created_date, tz = "America/New_York", quiet = TRUE) else created_date,
+    closed_date = if(is.character(closed_date)) ymd_hms(closed_date, tz = "America/New_York", quiet = TRUE) else closed_date
+  ) |>
+  
+  # Calculate response time
+  mutate(
+    response_time_days = as.numeric(difftime(closed_date, created_date, units = "days")),
+    year = year(created_date),
+    month = month(created_date),
+    weekday = wday(created_date, label = TRUE),
+    # Categorize complaint types
+    complaint_category = case_when(
+      str_detect(complaint_type, "Noise") ~ "Noise",
+      str_detect(complaint_type, "Parking|Driveway") ~ "Parking",
+      str_detect(complaint_type, "Sanitation|Condition") ~ "Sanitation",
+      TRUE ~ "Other"
+    )
+  ) |>
+  
+  # Filter for reasonable response times (remove outliers)
+  filter(response_time_days >= 0 & response_time_days <= 365) |>
+  
+  # Clean borough names
+  mutate(borough = str_to_title(borough))
+
+cat("Cleaned 311 Data:\n")
+cat("Rows after cleaning:", nrow(df_311_clean), "\n")
+cat("Response time range:", round(range(df_311_clean$response_time_days, na.rm = TRUE), 2), "days\n")
+
+
+# addition
+
+df_311_clean <- df_311_clean |>
+  mutate(
+    latitude = as.numeric(latitude),
+    longitude = as.numeric(longitude)
+  )
+
+
+
+df_property <- df_property |>
+  mutate(
+    latitude = as.numeric(latitude),
+    longitude = as.numeric(longitude)
+  )
+
+
+
+
+### 3.5 Integrate Geographic Data
+
+# Create spatial data and integrate with property information
+# This would typically involve spatial joins with census tracts or neighborhoods
+
+# For demonstration - assign neighborhoods based on proximity
+assign_neighborhoods <- function(df_311, df_property) {
+  # Simple nearest neighbor assignment (in practice, use proper spatial joins)
+  df_with_neighborhoods <- df_311 |>
+    rowwise() |>
+    mutate(
+      # Find closest neighborhood (simplified calculation)
+      neighborhood = {
+        distances <- sqrt((latitude - df_property$latitude)^2 + (longitude - df_property$longitude)^2)
+        df_property$neighborhood[which.min(distances)]
+      }
+    ) |>
+    ungroup()
+  
+  # Join with property data - make sure to preserve borough from 311 data
+  df_integrated <- df_with_neighborhoods |>
+    left_join(df_property |> select(-borough), by = "neighborhood") |>  # Remove borough from property to avoid conflicts
+    rename(borough_311 = borough) |>  # Keep original borough from 311 data
+    rename(borough = borough_311)     # Use 311 borough as primary
+  
+  return(df_integrated)
+}
+
+# Integrate data
+df_integrated <- assign_neighborhoods(df_311_clean, df_property)
+
+cat("Integrated Dataset:\n")
+cat("Rows:", nrow(df_integrated), "\n")
+cat("Unique Neighborhoods:", length(unique(df_integrated$neighborhood)), "\n")
+cat("Columns:", paste(names(df_integrated), collapse = ", "), "\n")
+cat("Unique Boroughs:", paste(unique(df_integrated$borough), collapse = ", "), "\n")
+
+
+incident_zip = str_extract(incident_zip, "\\d{5}")
+
+
+This code above cleans the zip code to ensure that we obtain 5 digit zip codes instead of missing or invalid values. 
+
+To answer my specific question “What is the average response time to quality of life complaints by neighborhood?” I computed valuable information at the zip code level such as number of complaints, mean response time (in hours and days). I also ranked the zip codes from slowest to fastest. I also analyzed zip level results to produce borough level summaries, making it easier to understand broader geographic patterns. I used the below code to do some basic cleaning and filtering so that I can focus on the appropriate values. 
+
+
+nyc_311_clean <- df_311_clean %>%
+mutate(
+incident_zip = str_extract(incident_zip, "^[0-9]{5}$")
+) %>%
+filter(!is.na(incident_zip)) %>%
+filter(!borough %in% c("Unspecified", "", NA))
+
+
+The code below is to build the zip level response metrics such as mean hours, mean days, the standard deviation, and the 25th and 75th percentile response times.
+
+
+response_by_zip <- nyc_311_clean %>%
+mutate(response_time_hours = response_time_days * 24) %>%
+group_by(incident_zip, borough) %>%
+summarize(
+n_complaints        = n(),
+mean_response_days  = mean(response_time_days, na.rm = TRUE),
+mean_response_hours = mean(response_time_hours, na.rm = TRUE),
+sd_response_days    = sd(response_time_days, na.rm = TRUE),
+p25_days            = quantile(response_time_days, 0.25, na.rm = TRUE),
+p75_days            = quantile(response_time_days, 0.75, na.rm = TRUE),
+.groups = "drop"
+)
+
+I then found the top 10 slowest zip codes using the below code:
+
+datatable(
+response_by_zip %>%
+slice_max(mean_response_days, n = 10) %>%
+select(incident_zip, borough, n_complaints, mean_response_days),
+caption = "Top 10 Slowest ZIP Codes (Mean Response Time in Days)",
+colnames = c("ZIP", "Borough", "# Complaints", "Mean Days"),
+options = list(pageLength = 10, dom = 't'),
+rownames = FALSE
+) %>%
+formatRound("mean_response_days", 2) %>%
+formatCurrency("n_complaints", "", 0, ",")
+
+I figured that having a top 10 slowest zip codes would give tremendous insight on which areas experience longer delays than others. Several patterns immediately stand out. The Bronx zip 11370 is a dramatic outlier, with average response times above 150 days. Queens and Manhattan dominate the slowest zip list, suggesting that delays are not isolated to a single borough. Many of these slow zip codes have very low complaint counts (1–2 complaints). This will make the mean highly sensitive to outliers. Despite this, the extreme values are still relevant because they show that long delays do occur, even if only in certain zip codes. Those with 30+ complaints still show meaningful delays (Queens 11430).
+
+Below is the top 10 fastest zip codes code:
+
+datatable(
+  response_by_zip %>%
+    arrange(mean_response_hours) %>%   
+    slice_head(n = 10) %>%
+    select(incident_zip, borough, n_complaints, mean_response_hours),
+  caption = "Top 10 Fastest ZIP Codes (Mean Response Time in Hours)",
+  colnames = c("ZIP", "Borough", "# Complaints", "Mean Hours"),
+  options = list(
+    pageLength = 10,
+    dom = 't',
+    ordering = FALSE                 
+  ),
+  rownames = FALSE
+) %>%
+  formatRound("mean_response_hours", 2) %>%
+  formatCurrency("n_complaints", "", 0, ",")
+
+By running this we can see that several Manhattan zip codes came out on top. Manhattan dominates this list, which aligns with expectations: many business district zip codes have dedicated service units and receive high visibility complaints.
+
+Additionally I produced visualizations to help better understand the results such as a bar plot, heatmap, and a borough averages chart. I will definitely say though that my favorite part was setting the visualizations. Below are a few codes used for visualizations:
+
+
+ggplot(
+  response_by_borough %>% 
+    filter(borough != "Unspecified"),    # <--- removes Unspecified
+  aes(x = reorder(borough, avg_mean_days),
+      y = avg_mean_days,
+      fill = borough)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Average Response Time by Borough",
+    x = "Borough",
+    y = "Average Response Time (days)"
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.position = "none")
+
+
+The code above was for the Average response time by borough chart. When I first ran the code I had the 5 boroughs but I also had “unspecified” show up in the visualization so I added that line “filter(borough !=”unspeficied”)” in order to remove it from the visualization. This bar chart showed that the Bronx tends to experience the longest delays; Staten Island tends to experience the fastest responses.
+
+Below is another code used for visualization:
+
+
+response_by_zip %>%
+filter(n_complaints >= 30) %>%
+ggplot(aes(
+x = borough,
+y = incident_zip,
+fill = mean_response_days)) +
+geom_tile() +
+scale_fill_gradient2(
+low = "green",
+mid = "yellow",
+high = "red",
+midpoint = mean(response_by_zip$mean_response_days, na.rm = TRUE)
+) +
+labs(
+title = "Average 311 Response Time by ZIP Code and Borough",
+x = "Borough",
+y = "ZIP Code",
+fill = "Mean Days"
+) +
+theme(axis.text.y = element_text(size = 6))
+
+The code above is a heatmap showing the five boroughs and the zip codes in them. It’s color coordinated so that red would mean it took the longest days, yellow is in the middle, and green is the lowest. This is an easy visuallization to interpret because it allows readers to see with color coordination how often a borough has a high, low, or in the middle response time.  
+
+Some key findings from my specific question:
+Average response times vary widely across ZIP codes, ranging from under an hour to more than 150 days.
+
+Most ZIP codes fall between 5–15 days, showing moderate consistency across the city.
+
+A small number of ZIP codes are extreme outliers, often due to very low complaint counts.
+
+Borough-level patterns reveal systematic differences, with the Bronx experiencing the longest average delays and Staten Island the shortest.
+
+Manhattan shows both extremes:
+
+Some ZIPs are resolved in under an hour
+
+Others appear among the slowest ZIPs
+
+Queens has substantial variation, including one of the longest-delay ZIPs (11430).
